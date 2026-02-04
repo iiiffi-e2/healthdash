@@ -1,38 +1,13 @@
-const bcrypt = require("bcryptjs");
-const path = require("path");
-const { mkdir, copyFile, stat, writeFile } = require("fs/promises");
-const { execSync } = require("child_process");
+import * as bcrypt from "bcryptjs";
+import path from "node:path";
+import { copyFile, mkdir, stat, writeFile } from "node:fs/promises";
+import { PrismaPg } from "@prisma/adapter-pg";
+import { Pool } from "pg";
+import { PrismaClient } from "../src/generated/prisma/client";
 
-function loadPrismaClient() {
-  try {
-    return require("../src/generated/prisma").PrismaClient;
-  } catch (error) {
-    try {
-      return require("../src/generated/prisma/client").PrismaClient;
-    } catch (innerError) {
-      return null;
-    }
-  }
-}
-
-let PrismaClient = loadPrismaClient();
-if (!PrismaClient) {
-  try {
-    execSync("npx prisma generate --schema prisma/schema.prisma", {
-      stdio: "inherit",
-    });
-  } catch (error) {
-    console.error("Unable to run `prisma generate`.", error);
-  }
-  PrismaClient = loadPrismaClient();
-}
-if (!PrismaClient) {
-  throw new Error(
-    "Prisma client not generated. Run `npm run prisma:generate` and try again.",
-  );
-}
-
-const prisma = new PrismaClient();
+const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+const adapter = new PrismaPg(pool);
+const prisma = new PrismaClient({ adapter });
 
 const names = [
   ["Avery", "Khan"],
@@ -134,40 +109,40 @@ const appointmentTypeCatalog = [
   { name: "Emergency Visit", duration: 25, color: "#f97316" },
 ];
 
-function pick(list, index) {
+function pick<T>(list: T[], index: number) {
   return list[index % list.length];
 }
 
-function randomPhone(seed) {
+function randomPhone(seed: number) {
   return `555-${String(100 + seed).slice(-3)}-${String(1000 + seed * 37).slice(-4)}`;
 }
 
-function dateAt(base, dayOffset, hour, minute = 0) {
+function dateAt(base: Date, dayOffset: number, hour: number, minute = 0) {
   const date = new Date(base);
   date.setDate(date.getDate() + dayOffset);
   date.setHours(hour, minute, 0, 0);
   return date;
 }
 
-function addMinutes(date, minutes) {
+function addMinutes(date: Date, minutes: number) {
   const updated = new Date(date);
   updated.setMinutes(updated.getMinutes() + minutes);
   return updated;
 }
 
-function addDays(date, days) {
+function addDays(date: Date, days: number) {
   const updated = new Date(date);
   updated.setDate(updated.getDate() + days);
   return updated;
 }
 
-function seededPastDate(index, rangeDays) {
+function seededPastDate(index: number, rangeDays: number) {
   const dayOffset = -((index * 7) % rangeDays) - 2;
   const hour = 9 + (index % 8);
   return dateAt(new Date(), dayOffset, hour, index % 2 === 0 ? 0 : 30);
 }
 
-async function ensureDemoUploadFile(storageKey) {
+async function ensureDemoUploadFile(storageKey: string) {
   const uploadsDir = path.join(process.cwd(), "public", "uploads");
   await mkdir(uploadsDir, { recursive: true });
   const source = path.join(process.cwd(), "public", "file.svg");

@@ -15,13 +15,14 @@ const updateSchema = z.object({
 
 export async function GET(
   _request: Request,
-  { params }: { params: { id: string } },
+  { params }: { params: Promise<{ id: string }> },
 ) {
   const { error } = await requireApiUser(Permissions.MANAGE_PATIENTS);
   if (error) return error;
 
+  const { id } = await params;
   const patient = await prisma.patient.findUnique({
-    where: { id: params.id },
+    where: { id },
   });
   if (!patient) {
     return apiError("NOT_FOUND", "Patient not found.", 404);
@@ -42,11 +43,12 @@ export async function GET(
 
 export async function PATCH(
   request: Request,
-  { params }: { params: { id: string } },
+  { params }: { params: Promise<{ id: string }> },
 ) {
   const { error, user } = await requireApiUser(Permissions.MANAGE_PATIENTS);
   if (error) return error;
 
+  const { id } = await params;
   const body = await request.json().catch(() => null);
   const parsed = updateSchema.safeParse(body);
   if (!parsed.success) {
@@ -54,14 +56,14 @@ export async function PATCH(
   }
 
   const existing = await prisma.patient.findUnique({
-    where: { id: params.id },
+    where: { id },
   });
   if (!existing) {
     return apiError("NOT_FOUND", "Patient not found.", 404);
   }
 
   const updated = await prisma.patient.update({
-    where: { id: params.id },
+    where: { id },
     data: {
       ...parsed.data,
       dob: parsed.data.dob ? new Date(parsed.data.dob) : undefined,
@@ -84,20 +86,21 @@ export async function PATCH(
 
 export async function DELETE(
   _request: Request,
-  { params }: { params: { id: string } },
+  { params }: { params: Promise<{ id: string }> },
 ) {
   const { error, user } = await requireApiUser(Permissions.MANAGE_PATIENTS);
   if (error) return error;
 
+  const { id } = await params;
   const existing = await prisma.patient.findUnique({
-    where: { id: params.id },
+    where: { id },
   });
   if (!existing) {
     return apiError("NOT_FOUND", "Patient not found.", 404);
   }
 
   const updated = await prisma.patient.update({
-    where: { id: params.id },
+    where: { id },
     data: { isActive: false },
   });
 

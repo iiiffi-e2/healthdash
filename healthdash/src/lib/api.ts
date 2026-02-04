@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
 import { hasPermission, Permissions, type Permission } from "@/lib/rbac";
 import type { UserRole } from "@/generated/prisma/client";
 
@@ -24,12 +25,28 @@ export async function requireApiUser(permission?: Permission) {
   const session = await getServerSession(authOptions);
   if (!session?.user) {
     if (process.env.DEMO_MODE === "true") {
-      return {
-        user: {
+      const demoUser = await prisma.user.upsert({
+        where: { email: "demo@healthdash.dev" },
+        update: {
+          name: "Demo User",
+          role: "ADMIN",
+          isActive: true,
+        },
+        create: {
           id: "demo",
           name: "Demo User",
           email: "demo@healthdash.dev",
+          passwordHash: "demo",
           role: "ADMIN",
+          isActive: true,
+        },
+      });
+      return {
+        user: {
+          id: demoUser.id,
+          name: demoUser.name,
+          email: demoUser.email,
+          role: demoUser.role,
           permissions: Object.values(Permissions),
         },
       };

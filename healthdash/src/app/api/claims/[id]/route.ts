@@ -17,13 +17,14 @@ const updateSchema = z.object({
 
 export async function GET(
   _request: Request,
-  { params }: { params: { id: string } },
+  { params }: { params: Promise<{ id: string }> },
 ) {
   const { error } = await requireApiUser(Permissions.MANAGE_CLAIMS);
   if (error) return error;
 
+  const { id } = await params;
   const claim = await prisma.claim.findUnique({
-    where: { id: params.id },
+    where: { id },
     include: { patient: true, statusHistory: { orderBy: { changedAt: "desc" } } },
   });
   if (!claim) {
@@ -50,11 +51,12 @@ export async function GET(
 
 export async function PATCH(
   request: Request,
-  { params }: { params: { id: string } },
+  { params }: { params: Promise<{ id: string }> },
 ) {
   const { error, user } = await requireApiUser(Permissions.MANAGE_CLAIMS);
   if (error) return error;
 
+  const { id } = await params;
   const body = await request.json().catch(() => null);
   const parsed = updateSchema.safeParse(body);
   if (!parsed.success) {
@@ -62,14 +64,14 @@ export async function PATCH(
   }
 
   const existing = await prisma.claim.findUnique({
-    where: { id: params.id },
+    where: { id },
   });
   if (!existing) {
     return apiError("NOT_FOUND", "Claim not found.", 404);
   }
 
   const updated = await prisma.claim.update({
-    where: { id: params.id },
+    where: { id },
     data: {
       payerName: parsed.data.payerName,
       amountBilledCents: parsed.data.amountBilledCents,
