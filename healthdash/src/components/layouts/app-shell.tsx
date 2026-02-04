@@ -1,5 +1,8 @@
+"use client";
+
 import { Sidebar } from "@/components/layouts/sidebar";
 import { Topbar } from "@/components/layouts/topbar";
+import { portalNavigation, staffNavigation } from "@/lib/navigation";
 
 type NavItem = {
   label: string;
@@ -7,17 +10,22 @@ type NavItem = {
   icon: React.ComponentType<{ className?: string }>;
 };
 
+type NavigationVariant = "staff" | "portal";
+
 export function AppShell({
   title,
-  navigation,
+  navigationVariant = "staff",
   children,
   topbar,
 }: {
   title: string;
-  navigation: NavItem[];
+  navigationVariant?: NavigationVariant;
   children: React.ReactNode;
   topbar?: React.ReactNode;
 }) {
+  const navigation: NavItem[] =
+    navigationVariant === "portal" ? portalNavigation : staffNavigation;
+
   return (
     <div className="flex min-h-screen bg-background">
       <Sidebar navigation={navigation} title={title} />

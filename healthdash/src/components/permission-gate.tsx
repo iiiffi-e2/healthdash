@@ -2,7 +2,7 @@
 
 import { useSession } from "next-auth/react";
 import { hasPermission, type Permission } from "@/lib/rbac";
-import type { UserRole } from "@/generated/prisma";
+import type { UserRole } from "@/generated/prisma/client";
 
 export function PermissionGate({
   permission,

@@ -1,5 +1,4 @@
 import { AppShell } from "@/components/layouts/app-shell";
-import { staffNavigation } from "@/lib/navigation";
 
 export default function StaffLayout({
   children,
@@ -7,7 +6,7 @@ export default function StaffLayout({
   children: React.ReactNode;
 }) {
   return (
-    <AppShell title="Healthdash" navigation={staffNavigation}>
+    <AppShell title="Healthdash" navigationVariant="staff">
       {children}
     </AppShell>
   );

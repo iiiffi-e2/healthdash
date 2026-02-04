@@ -1,6 +1,5 @@
 import { AppShell } from "@/components/layouts/app-shell";
 import { PortalTopbar } from "@/components/layouts/portal-topbar";
-import { portalNavigation } from "@/lib/navigation";
 
 export default function PortalLayout({
   children,
@@ -10,7 +9,7 @@ export default function PortalLayout({
   return (
     <AppShell
       title="Healthdash Portal"
-      navigation={portalNavigation}
+      navigationVariant="portal"
       topbar={<PortalTopbar />}
     >
       {children}

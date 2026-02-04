@@ -19,7 +19,7 @@ export async function getDashboardMetrics() {
     pendingClaims,
     pendingClaimsSum,
     monthlyPayments,
-    activePatients,
+    activePatientsGrouped,
     completedAppointmentsThisMonth,
     noShowCount,
     totalAppointments30Days,
@@ -46,9 +46,10 @@ export async function getDashboardMetrics() {
       where: { postedAt: { gte: monthStart, lt: monthEnd } },
       _sum: { amountCents: true },
     }),
-    prisma.appointment.count({
+    prisma.appointment.groupBy({
+      by: ["patientId"],
       where: { startAt: { gte: activeSince } },
-      distinct: ["patientId"],
+      _count: { patientId: true },
     }),
     prisma.appointment.count({
       where: {
@@ -78,6 +79,7 @@ export async function getDashboardMetrics() {
     prisma.patient.count({ where: { isActive: true } }),
   ]);
 
+  const activePatients = activePatientsGrouped.length;
   const retentionPatients = completedAppointmentsRetention.filter(
     (row) => row._count.patientId >= 2,
   ).length;
