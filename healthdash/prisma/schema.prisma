@@ -1,0 +1,387 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  ADMIN
+  PHYSICIAN
+  NURSE
+  FRONT_DESK
+  BILLING
+}
+
+enum AppointmentStatus {
+  SCHEDULED
+  CONFIRMED
+  CHECKED_IN
+  IN_PROGRESS
+  COMPLETED
+  NO_SHOW
+  CANCELED
+}
+
+enum ClaimStatus {
+  DRAFT
+  SUBMITTED
+  PENDING
+  APPROVED
+  PAID
+  DENIED
+  APPEALED
+  RESUBMITTED
+}
+
+enum InvoiceStatus {
+  OPEN
+  PARTIALLY_PAID
+  PAID
+  VOID
+}
+
+enum MessageSenderType {
+  PATIENT
+  STAFF
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  STATUS_CHANGE
+  LOGIN
+}
+
+enum StaffScheduleType {
+  SHIFT
+  TIME_OFF
+}
+
+enum WaitlistStatus {
+  OPEN
+  CONTACTED
+  BOOKED
+  CLOSED
+}
+
+enum PaymentMethod {
+  CASH
+  CARD
+  CHECK
+  ACH
+  OTHER
+}
+
+model User {
+  id           String    @id @default(cuid())
+  name         String
+  email        String    @unique
+  passwordHash String
+  role         UserRole
+  isActive     Boolean   @default(true)
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  providerProfile  ProviderProfile?
+  staffSchedules   StaffSchedule[]
+  createdAppointments Appointment[] @relation("AppointmentCreatedBy")
+  updatedAppointments Appointment[] @relation("AppointmentUpdatedBy")
+  providerAppointments Appointment[] @relation("AppointmentProvider")
+  createdClaims     Claim[] @relation("ClaimCreatedBy")
+  updatedClaims     Claim[] @relation("ClaimUpdatedBy")
+  createdEncounters Encounter[] @relation("EncounterCreatedBy")
+  uploadedDocuments Document[]
+  createdPayments   Payment[]
+  claimStatusChanges ClaimStatusHistory[] @relation("ClaimStatusChangedBy")
+  staffMessages     Message[] @relation("StaffMessages")
+  auditLogs         AuditLog[] @relation("AuditActor")
+}
+
+model ProviderProfile {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  specialty String
+  color     String
+  npi       String?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+model StaffSchedule {
+  id         String             @id @default(cuid())
+  userId     String
+  startAt    DateTime
+  endAt      DateTime
+  type       StaffScheduleType
+  locationId String?
+  note       String?
+
+  user     User      @relation(fields: [userId], references: [id])
+  location Location? @relation(fields: [locationId], references: [id])
+
+  @@index([userId, startAt])
+}
+
+model Patient {
+  id           String   @id @default(cuid())
+  firstName    String
+  lastName     String
+  dob          DateTime
+  email        String?
+  phone        String?
+  addressJson  Json?
+  isActive     Boolean  @default(true)
+  portalUserId String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  insuranceProfile InsuranceProfile?
+  appointments     Appointment[]
+  invoices         Invoice[]
+  claims           Claim[]
+  documents        Document[]
+  messageThreads   MessageThread[]
+  waitlistRequests WaitlistRequest[]
+}
+
+model InsuranceProfile {
+  id          String  @id @default(cuid())
+  patientId   String  @unique
+  payerName   String
+  memberId    String
+  groupNumber String?
+  planType    String?
+  notes       String?
+
+  patient Patient @relation(fields: [patientId], references: [id])
+}
+
+model Location {
+  id         String   @id @default(cuid())
+  name       String
+  addressJson Json?
+  timezone   String
+  isActive   Boolean  @default(true)
+
+  appointments  Appointment[]
+  staffSchedules StaffSchedule[]
+}
+
+model AppointmentType {
+  id                 String  @id @default(cuid())
+  name               String
+  defaultDurationMin Int
+  color              String
+  bufferBeforeMin    Int     @default(0)
+  bufferAfterMin     Int     @default(0)
+  isActive           Boolean @default(true)
+
+  appointments Appointment[]
+  waitlistRequests WaitlistRequest[]
+}
+
+model Appointment {
+  id                String             @id @default(cuid())
+  patientId         String
+  providerId        String
+  locationId        String
+  appointmentTypeId String
+  startAt           DateTime
+  endAt             DateTime
+  status            AppointmentStatus  @default(SCHEDULED)
+  reason            String?
+  notes             String?
+  createdByUserId   String
+  updatedByUserId   String?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  patient         Patient         @relation(fields: [patientId], references: [id])
+  provider        User            @relation("AppointmentProvider", fields: [providerId], references: [id])
+  location        Location        @relation(fields: [locationId], references: [id])
+  appointmentType AppointmentType @relation(fields: [appointmentTypeId], references: [id])
+  createdByUser   User            @relation("AppointmentCreatedBy", fields: [createdByUserId], references: [id])
+  updatedByUser   User?           @relation("AppointmentUpdatedBy", fields: [updatedByUserId], references: [id])
+  encounter       Encounter?
+  claims          Claim[]
+  invoices        Invoice[]
+
+  @@index([providerId, startAt])
+  @@index([patientId, startAt])
+  @@index([locationId, startAt])
+}
+
+model WaitlistRequest {
+  id                 String         @id @default(cuid())
+  patientId          String
+  appointmentTypeId  String
+  preferredStartAt   DateTime?
+  preferredEndAt     DateTime?
+  priority           Int
+  status             WaitlistStatus @default(OPEN)
+  note               String?
+  createdAt          DateTime       @default(now())
+
+  patient         Patient         @relation(fields: [patientId], references: [id])
+  appointmentType AppointmentType @relation(fields: [appointmentTypeId], references: [id])
+}
+
+model Encounter {
+  id             String   @id @default(cuid())
+  appointmentId  String   @unique
+  summary        String?
+  createdByUserId String
+  createdAt      DateTime @default(now())
+
+  appointment  Appointment @relation(fields: [appointmentId], references: [id])
+  createdByUser User        @relation("EncounterCreatedBy", fields: [createdByUserId], references: [id])
+  claim         Claim?
+}
+
+model Document {
+  id              String   @id @default(cuid())
+  patientId        String
+  uploadedByUserId String
+  title            String
+  type             String
+  storageKey       String
+  mimeType         String
+  sizeBytes        Int
+  createdAt        DateTime @default(now())
+
+  patient        Patient @relation(fields: [patientId], references: [id])
+  uploadedByUser User    @relation(fields: [uploadedByUserId], references: [id])
+}
+
+model Invoice {
+  id               String       @id @default(cuid())
+  patientId        String
+  appointmentId    String?
+  totalAmountCents Int
+  balanceCents     Int
+  status           InvoiceStatus @default(OPEN)
+  dueAt            DateTime?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  patient     Patient      @relation(fields: [patientId], references: [id])
+  appointment Appointment? @relation(fields: [appointmentId], references: [id])
+  payments    Payment[]
+
+  @@index([patientId, status])
+}
+
+model Payment {
+  id             String        @id @default(cuid())
+  invoiceId      String
+  amountCents    Int
+  method         PaymentMethod
+  reference      String?
+  postedAt       DateTime      @default(now())
+  createdByUserId String
+
+  invoice      Invoice @relation(fields: [invoiceId], references: [id])
+  createdByUser User   @relation(fields: [createdByUserId], references: [id])
+}
+
+model Claim {
+  id               String       @id @default(cuid())
+  patientId        String
+  appointmentId    String?
+  encounterId      String?
+  payerName        String
+  amountBilledCents Int
+  amountPaidCents  Int          @default(0)
+  status           ClaimStatus  @default(DRAFT)
+  submittedAt      DateTime?
+  decidedAt        DateTime?
+  flagged          Boolean      @default(false)
+  denialReason     String?
+  createdByUserId  String
+  updatedByUserId  String?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  patient       Patient    @relation(fields: [patientId], references: [id])
+  appointment   Appointment? @relation(fields: [appointmentId], references: [id])
+  encounter     Encounter? @relation(fields: [encounterId], references: [id])
+  createdByUser User       @relation("ClaimCreatedBy", fields: [createdByUserId], references: [id])
+  updatedByUser User?      @relation("ClaimUpdatedBy", fields: [updatedByUserId], references: [id])
+  statusHistory ClaimStatusHistory[]
+
+  @@index([status, updatedAt])
+  @@index([patientId])
+  @@index([flagged])
+}
+
+model ClaimStatusHistory {
+  id             String      @id @default(cuid())
+  claimId        String
+  fromStatus     ClaimStatus
+  toStatus       ClaimStatus
+  note           String?
+  changedByUserId String
+  changedAt      DateTime    @default(now())
+
+  claim         Claim @relation(fields: [claimId], references: [id])
+  changedByUser User  @relation("ClaimStatusChangedBy", fields: [changedByUserId], references: [id])
+
+  @@index([claimId, changedAt])
+}
+
+model MessageThread {
+  id            String   @id @default(cuid())
+  patientId     String
+  subject       String
+  lastMessageAt DateTime
+  createdAt     DateTime @default(now())
+
+  patient  Patient  @relation(fields: [patientId], references: [id])
+  messages Message[]
+}
+
+model Message {
+  id              String            @id @default(cuid())
+  threadId        String
+  senderType      MessageSenderType
+  senderPatientId String?
+  senderUserId    String?
+  body            String
+  createdAt       DateTime          @default(now())
+  readAt          DateTime?
+
+  thread       MessageThread @relation(fields: [threadId], references: [id])
+  senderPatient Patient?     @relation(fields: [senderPatientId], references: [id])
+  senderUser   User?         @relation("StaffMessages", fields: [senderUserId], references: [id])
+
+  @@index([threadId, createdAt])
+}
+
+model AuditLog {
+  id         String      @id @default(cuid())
+  actorUserId String?
+  action     AuditAction
+  entityType String
+  entityId   String
+  beforeJson Json?
+  afterJson  Json?
+  createdAt  DateTime   @default(now())
+  ip         String?
+
+  actorUser User? @relation("AuditActor", fields: [actorUserId], references: [id])
+
+  @@index([entityType, createdAt])
+}
